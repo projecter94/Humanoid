@@ -1,0 +1,266 @@
+local player = game.Players.LocalPlayer
+local attachedPlayer = nil
+local spinning = false
+local orbiting = false
+local annoying = false
+local infiniteJumpEnabled = false
+
+local function showWelcomeMessage()
+    local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+    local messageLabel = Instance.new("TextLabel", screenGui)
+    messageLabel.Size = UDim2.new(0.5, 0, 0.1, 0)
+    messageLabel.Position = UDim2.new(0.25, 0, 0.45, 0)
+    messageLabel.Text = "You have successfully loaded Humanoid -- Enjoy! ☺"
+    messageLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+    messageLabel.TextScaled = true
+    messageLabel.BackgroundTransparency = 1
+
+    wait(3)
+    screenGui:Destroy()
+end
+
+local function createCommandUI()
+    local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+    local frame = Instance.new("Frame", screenGui)
+    frame.Size = UDim2.new(0.4, 0, 0.5, 0)
+    frame.Position = UDim2.new(0.3, 0, 0.25, 0)
+    frame.BackgroundTransparency = 0.8
+    frame.BorderSizePixel = 0
+    frame.Active = true
+    frame.Draggable = true
+
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0.1, 0)
+
+    local title = Instance.new("TextLabel", frame)
+    title.Size = UDim2.new(1, 0, 0.2, 0)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.Text = "Command Center"
+    title.TextColor3 = Color3.fromRGB(255, 215, 0)
+    title.TextScaled = true
+    title.BackgroundTransparency = 1
+    title.TextStrokeTransparency = 0.5
+    title.Font = Enum.Font.SourceSansBold
+
+    local commandList = Instance.new("TextLabel", frame)
+    commandList.Size = UDim2.new(1, 0, 0.7, 0)
+    commandList.Position = UDim2.new(0, 0, 0.2, 0)
+    commandList.Text = [[
+.Affix <player> - Attach to a player
+.Unaffix - Detach from the player
+.Spin <speed> - Spin at specified speed (1-200)
+.Stopspin - Stop spinning
+.Orbit <player> <distance> <speed> - Orbit around a player
+.Stoporbit - Stop orbiting
+.Speed <amount> - Set your walk speed (0-200)
+.To <player> - Teleport to a player
+.Annoy <player> - Walk behind a player
+.Unannoy - Stop walking behind the player
+.Infjump - Enable infinite jump
+.Stopinfjump - Disable infinite jump
+.Cmds - Show this command list]]
+    commandList.TextColor3 = Color3.fromRGB(255, 255, 255)
+    commandList.TextScaled = true
+    commandList.BackgroundTransparency = 1
+    commandList.TextWrapped = true
+
+    local closeButton = Instance.new("TextButton", frame)
+    closeButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+    closeButton.Position = UDim2.new(0.9, 0, 0)
+    closeButton.Text = "X"
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextScaled = true
+    closeButton.BorderSizePixel = 0
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+
+    return screenGui
+end
+
+local function getPlayerByPartialName(partialName)
+    for _, targetPlayer in ipairs(game.Players:GetPlayers()) do
+        if targetPlayer.Name:lower():sub(1, #partialName) == partialName:lower() then
+            return targetPlayer
+        end
+    end
+    return nil
+end
+
+local function orbit(target, distance, speed)
+    orbiting = true
+    local character = player.Character
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and hrp then
+        local targetHRP = target.Character.HumanoidRootPart
+        local angle = 0
+
+        while orbiting do
+            angle = angle + speed / 10
+            local radians = math.rad(angle)
+            local offset = Vector3.new(math.cos(radians) * distance, 0, math.sin(radians) * distance)
+            hrp.CFrame = targetHRP.CFrame * CFrame.new(offset)
+            wait(0.03)
+        end
+    end
+end
+
+local function stopOrbiting()
+    orbiting = false
+end
+
+local function teleportToPlayer(target)
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+        local targetHRP = target.Character.HumanoidRootPart
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = targetHRP.CFrame
+        else
+            warn("Your character does not have a HumanoidRootPart.")
+        end
+    else
+        warn("Target player does not exist or has no HumanoidRootPart.")
+    end
+end
+
+local function spin(speed)
+    spinning = true
+    local character = player.Character
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+
+    if hrp then
+        while spinning do
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(speed), 0)
+            wait(0.03)
+        end
+    end
+end
+
+local function stopSpinning()
+    spinning = false
+end
+
+local function setSpeed(amount)
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = amount
+    end
+end
+
+local function affixToPlayer(target)
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+        local targetHRP = target.Character.HumanoidRootPart
+        player.Character.HumanoidRootPart.CFrame = targetHRP.CFrame * CFrame.new(0, 5, 0)
+        local weld = Instance.new("WeldConstraint")
+        weld.Name = "AttachmentWeld"
+        weld.Part0 = player.Character.HumanoidRootPart
+        weld.Part1 = targetHRP
+        weld.Parent = player.Character.HumanoidRootPart
+        attachedPlayer = target
+    end
+end
+
+local function unaffixFromPlayer()
+    if attachedPlayer then
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        local weld = hrp:FindFirstChild("AttachmentWeld")
+        if weld then
+            weld:Destroy()
+        end
+        attachedPlayer = nil
+    end
+end
+
+local function walkBehind(target)
+    annoying = true
+    local character = player.Character
+    local targetHRP = target.Character:FindFirstChild("HumanoidRootPart")
+
+    if targetHRP then
+        while annoying do
+            local backPos = targetHRP.Position - targetHRP.CFrame.LookVector * 5
+            character:SetPrimaryPartCFrame(CFrame.new(backPos))
+            wait(0.5)
+            local forwardPos = targetHRP.Position + targetHRP.CFrame.LookVector * 5
+            character:SetPrimaryPartCFrame(CFrame.new(forwardPos))
+            wait(0.5)
+        end
+    end
+end
+
+local function stopAnnoying()
+    annoying = false
+end
+
+local function onJumpRequest()
+    if infiniteJumpEnabled then
+        local character = player.Character
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end
+
+local function enableInfiniteJump()
+    infiniteJumpEnabled = true
+end
+
+local function disableInfiniteJump()
+    infiniteJumpEnabled = false
+end
+
+local function onChatted(message)
+    local args = message:split(" ")
+    local command = args[1]:lower()
+
+    if command == ".orbit" and args[2] and args[3] and args[4] then
+        local targetPlayer = getPlayerByPartialName(args[2])
+        if targetPlayer then
+            local distance = math.clamp(tonumber(args[3]), 1, 100)
+            local speed = math.clamp(tonumber(args[4]), 1, 200)
+            orbit(targetPlayer, distance, speed)
+        end
+    elseif command == ".stoporbit" then
+        stopOrbiting()
+    elseif command == ".to" and args[2] then
+        local targetPlayer = getPlayerByPartialName(args[2])
+        if targetPlayer then
+            teleportToPlayer(targetPlayer)
+        end
+    elseif command == ".spin" and args[2] then
+        local speed = math.clamp(tonumber(args[2]), 1, 200)
+        spin(speed)
+    elseif command == ".stopspin" then
+        stopSpinning()
+    elseif command == ".speed" and args[2] then
+        local amount = math.clamp(tonumber(args[2]), 1, 200)
+        setSpeed(amount)
+    elseif command == ".affix" and args[2] then
+        local targetPlayer = getPlayerByPartialName(args[2])
+        if targetPlayer then
+            affixToPlayer(targetPlayer)
+        end
+    elseif command == ".unaffix" then
+        unaffixFromPlayer()
+    elseif command == ".annoy" and args[2] then
+        local targetPlayer = getPlayerByPartialName(args[2])
+        if targetPlayer then
+            walkBehind(targetPlayer)
+        end
+    elseif command == ".unannoy" then
+        stopAnnoying()
+    elseif command == ".infjump" then
+        enableInfiniteJump()
+    elseif command == ".stopinfjump" then
+        disableInfiniteJump()
+    elseif command == ".cmds" then
+        createCommandUI()
+    end
+end
+
+showWelcomeMessage()
+player.Chatted:Connect(onChatted)
+
